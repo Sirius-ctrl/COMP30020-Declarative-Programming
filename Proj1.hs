@@ -32,8 +32,35 @@ getCards n cardList
 --  as explained above, as a tuple.
 feedback :: [Card] -> [Card] -> (Int,Int,Int,Int,Int)
 
-feedback [] [] = [0,0,0,0,0]
-feedback target guess = [equalCheck target guess,0,0,0,0]
+feedback [] [] = (0,0,0,0,0)
+feedback target guess = (exact,lower,sameR,higher,0)
+    where exact = correctCards target guess
+          lower = lowerRank target guess
+          sameR = correctRank (rankPicker target) (rankPicker guess)
+          higher = higherRank target guess
 
-equalCheck :: [Card] -> [Card] -> Int
+correctCards :: [Card] -> [Card] -> Int
+correctCards _ [] = 0
+correctCards target guess = length [x |x <- guess, y <- target, x == y]
 
+rankPicker :: [Card] -> [Rank]
+rankPicker [] = []
+rankPicker [x] = [rank x]
+rankPicker (x:xs) = [rank x] ++ rankPicker xs
+
+lowerRank :: [Card] -> [Card] -> Int
+lowerRank _ [] = 0
+lowerRank target guess = length [x| x <- (rankPicker target), x < minimum ranksG]
+    where ranksG = rankPicker guess
+
+correctRank :: [Rank] -> [Rank] -> Int
+correctRank [] _ = 0
+correctRank target guess
+    | elem next guess  = 1 + correctRank (drop 1 target) (delete next guess)
+    | otherwise        = correctRank (drop 1 target) guess
+    where next = head target
+
+higherRank :: [Card] -> [Card] -> Int
+higherRank _ [] = 0
+higherRank target guess = length [x| x <- (rankPicker target), x > maximum ranksG]
+    where ranksG = rankPicker guess
