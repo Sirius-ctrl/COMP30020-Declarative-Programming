@@ -33,25 +33,45 @@ getCards n cardList
 feedback :: [Card] -> [Card] -> (Int,Int,Int,Int,Int)
 
 feedback [] [] = (0,0,0,0,0)
-feedback target guess = (exact,lower,sameR,higher,0)
+feedback target guess = (exact,lower,sameR,higher,sameS)
     where exact = correctCards target guess
-          lower = lowerRank target guess
-          sameR = correctRank (rankPicker target) (rankPicker guess)
-          higher = higherRank target guess
+          lower = rankComp target guess minimum (<)
+          sameR = correctRank (picker rank target) (picker rank guess)
+          higher = rankComp target guess maximum (>)
+          sameS = correctSuit (picker suit target) (picker suit guess)
 
+
+-- | pick part of the card info, where the f could only be either (rank or suit) which
+--   defined in Card.hs to take either rank or suit of the card.
+picker :: (Card -> a) -> [Card] -> [a]
+picker f []  = []
+picker f [x] = [f x]
+picker f (x:xs) = [f x] ++ (picker f xs)
+
+
+-- | Used for rule 2 and 4 in feedback, it could use customized binary operations
+--   which made this function more flexible to handle both of the case
+--   where f1 could only be either (minimum or maximum) and f2 is the binary operator which
+--   could only be either (< or >).
+rankComp :: [Card] -> [Card] -> ([Rank] -> Rank) -> (Rank -> Rank -> Bool) -> Int
+rankComp target guess f1 f2 = length [x| x <- ranks, f2 x $ f1 ranksG]
+    where ranksG = picker rank guess
+          ranks = picker rank target
+
+
+-- | compare whether there is a matched card in each set of input
+--   In this case, it compare the targets and guesses
 correctCards :: [Card] -> [Card] -> Int
 correctCards _ [] = 0
 correctCards target guess = length [x |x <- guess, y <- target, x == y]
 
-rankPicker :: [Card] -> [Rank]
-rankPicker [] = []
-rankPicker [x] = [rank x]
-rankPicker (x:xs) = [rank x] ++ rankPicker xs
 
-lowerRank :: [Card] -> [Card] -> Int
-lowerRank _ [] = 0
-lowerRank target guess = length [x| x <- (rankPicker target), x < minimum ranksG]
-    where ranksG = rankPicker guess
+-- oneMatch :: [a] -> [a] -> Int
+-- oneMatch [] _ = 0
+-- oneMatch target guess
+--     | elem next guess  = 1 + correctRank (drop 1 target) (delete next guess)
+--     | otherwise        = correctRank (drop 1 target) guess
+--     where next = head target
 
 correctRank :: [Rank] -> [Rank] -> Int
 correctRank [] _ = 0
@@ -60,7 +80,10 @@ correctRank target guess
     | otherwise        = correctRank (drop 1 target) guess
     where next = head target
 
-higherRank :: [Card] -> [Card] -> Int
-higherRank _ [] = 0
-higherRank target guess = length [x| x <- (rankPicker target), x > maximum ranksG]
-    where ranksG = rankPicker guess
+correctSuit :: [Suit] -> [Suit] -> Int
+correctSuit [] _ = 0
+correctSuit target guess
+    | elem next guess  = 1 + correctSuit (drop 1 target) (delete next guess)
+    | otherwise        = correctSuit (drop 1 target) guess
+    where next = head target
+
