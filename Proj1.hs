@@ -2,13 +2,7 @@ module Proj1 (feedback, initialGuess, nextGuess, GameState) where
 import Data.List
 import Card
 
-nextGuess :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
--- takes as input a pair of the previous guess and game state, and the feedback 
--- to this guess as a quintuple of counts of correct cards, low ranks, correct 
--- ranks, high ranks, and correct suits, and returns a pair of the next guess 
--- and new game state.
-
-type GameState = (Int, Int, Int, Int, Int)
+type GameState = (Int, Int)
 
 
 -- |takes the number of cards in the answer as input and returns 
@@ -16,7 +10,7 @@ type GameState = (Int, Int, Int, Int, Int)
 --  and a game state. The number of cards specified will be 2 
 --  for most of the test, and 3 or 4 for the remaining tests
 initialGuess :: Int -> ([Card],GameState)
-initialGuess n = ((getCards n []), (0,0,0,0,0))
+initialGuess n = ((getCards n []), (0,0))
 
 -- |take n adjacent cards for initial guessing
 getCards :: Int -> [Card] -> [Card]
@@ -36,9 +30,9 @@ feedback [] [] = (0,0,0,0,0)
 feedback target guess = (exact,lower,sameR,higher,sameS)
     where exact = correctCards target guess
           lower = rankComp target guess minimum (<)
-          sameR = correctRank (picker rank target) (picker rank guess)
+          sameR = oneMatch (picker rank target) (picker rank guess)
           higher = rankComp target guess maximum (>)
-          sameS = correctSuit (picker suit target) (picker suit guess)
+          sameS = oneMatch (picker suit target) (picker suit guess)
 
 
 -- | pick part of the card info, where the f could only be either (rank or suit) which
@@ -66,24 +60,25 @@ correctCards _ [] = 0
 correctCards target guess = length [x |x <- guess, y <- target, x == y]
 
 
--- oneMatch :: [a] -> [a] -> Int
--- oneMatch [] _ = 0
--- oneMatch target guess
---     | elem next guess  = 1 + correctRank (drop 1 target) (delete next guess)
---     | otherwise        = correctRank (drop 1 target) guess
---     where next = head target
-
-correctRank :: [Rank] -> [Rank] -> Int
-correctRank [] _ = 0
-correctRank target guess
-    | elem next guess  = 1 + correctRank (drop 1 target) (delete next guess)
-    | otherwise        = correctRank (drop 1 target) guess
+oneMatch :: Eq a => [a] -> [a] -> Int
+oneMatch [] _ = 0
+oneMatch target guess
+    | elem next guess  = 1 + oneMatch (drop 1 target) (delete next guess)
+    | otherwise        = oneMatch (drop 1 target) guess
     where next = head target
 
-correctSuit :: [Suit] -> [Suit] -> Int
-correctSuit [] _ = 0
-correctSuit target guess
-    | elem next guess  = 1 + correctSuit (drop 1 target) (delete next guess)
-    | otherwise        = correctSuit (drop 1 target) guess
-    where next = head target
+-- | takes as input a pair of the previous guess and game state, and the feedback 
+-- to this guess as a quintuple of counts of correct cards, low ranks, correct 
+-- ranks, high ranks, and correct suits, and returns a pair of the next guess 
+-- and new game state.
+nextGuess :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
+nextGuess (previous,state) (exact,lower,sameR,higher,sameS)
+    | lower /= 0    = (improveRank previous minimum pred, (1,1))
+    | higher /= 0   = (improveRank previous maximum succ, (1,2))
+    | otherwise     = (previous, (1,3))
 
+
+improveRank :: [Card] -> ([Card] -> Card) -> (Card -> Card) -> [Card]
+improveRank [] _ _ = []
+improveRank cards f1 f2 = ([f2 target]) ++ (delete target cards)
+    where target = f1 cards
