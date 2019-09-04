@@ -54,10 +54,11 @@ oneMatch target guess
 -- ranks, high ranks, and correct suits, and returns a pair of the next guess
 -- and new game state.
 nextGuess :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
-nextGuess (previous, (process, snum, sor, ror, cor, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | lower /= 0 || higher /= 0     = guessRank (previous, (process, snum, sor, ror, cor, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | length candidates /= 0        = (head candidates, (process, snum, sor, ror, cor, lenAll, drop 1 candidates))
-    | otherwise                     = nextGuess (previous, (process, snum, sor, ror, cor, lenAll, fixedRangeCan)) (exact,lower,sameR,higher,sameS)
+nextGuess (previous, (process, snum, cor, sor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+    -- | length ror > 0                = ([], (process, snum, cor, sor, ror, lenAll, candidates))
+    | process == 1                  = guessRank (previous, (1, snum, cor, sor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+    | length candidates /= 0        = (head candidates, (process, snum, cor, sor, ror, lenAll, drop 1 candidates))
+    | otherwise                     = nextGuess (previous, (process, snum, cor, sor, ror, lenAll, fixedRangeCan)) (exact,lower,sameR,higher,sameS)
     where fixedRangeCan = myCardFilter upperBoundCan (map $ \x -> rank x == rank floor) or
           -- filter out the candidates which do not contains the upper bound rank
           upperBoundCan = myCardFilter primaryCan (map $ \x -> rank x == rank ceiling) or
@@ -70,13 +71,16 @@ nextGuess (previous, (process, snum, sor, ror, cor, lenAll, candidates)) (exact,
 
 
 guessRank :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
-guessRank (previous, (process, snum, sor, ror, cor, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | l && h    = (improveRank (improveRank previous minimum pred) maximum succ, (1,[0,0,0,0],[],[],[],[0,0,0,0,0,0],[]))
-    | l         = (improveRank previous minimum pred, (1,[0,0,0,0],[],[],[],[0,0,0,0,0,0],[]))
-    | h         = (improveRank previous maximum succ, (1,[0,0,0,0],[],[],[],[0,0,0,0,0,0],[]))
-    | otherwise = (previous, (2,[0,0,0,0],[],[],[],[0,0,0,0,0,0],[]))
+guessRank (previous, (process, snum, cor, sor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+    | l && h    = (improveRank (improveRank previous minimum pred) maximum succ, (process,[0,0,0,0],[],[],[],[0,0,0,0,0,0],[]))
+    | l         = (improveRank previous minimum pred, (process,[0,0,0,0],[],[], newh,[0,0,0,0,0,0],[]))
+    | h         = (improveRank previous maximum succ, (process,[0,0,0,0],[],[], newl,[0,0,0,0,0,0],[]))
+    | otherwise = (previous, (2,[0,0,0,0],[],[], newror,[0,0,0,0,0,0],[]))
     where l = lower /= 0
           h = higher /= 0
+          newror = newh ++ newl
+          newh   = [Rankor (Just (rank $ maximum previous)) Nothing]
+          newl   = [Rankor (Just (rank $ minimum previous)) Nothing]
 
 
 -- | expand the range of the guess card where
@@ -123,11 +127,11 @@ myCardFilter (x:xs) f1 f2
 --   * [Cardor] the card pair which either of them will be in the card (only useful when there are 4 cards to guess)
 --   * [Int], length of above 3 list
 --   * [[Card]], all candidates
-type GameState = (Int, [Int], [Suitor], [Rankor], [Cardor], [Int], [[Card]])
+type GameState = (Int, [Int], [Cardor], [Suitor], [Rankor], [Int], [[Card]])
 
-data Suitor = Suitor (Maybe Suit) (Maybe Suit)
-data Rankor = Rankor (Maybe Rank) (Maybe Rank)
-data Cardor = Cardor (Maybe Card) (Maybe Card)
+data Suitor = Suitor (Maybe Suit) (Maybe Suit) deriving (Show)
+data Rankor = Rankor (Maybe Rank) (Maybe Rank) deriving (Show)
+data Cardor = Cardor (Maybe Card) (Maybe Card) deriving (Show)
 
 
 -- |takes the number of cards in the answer as input and returns 
@@ -135,7 +139,7 @@ data Cardor = Cardor (Maybe Card) (Maybe Card)
 --  and a game state. The number of cards specified will be 2 
 --  for most of the test, and 3 or 4 for the remaining tests
 initialGuess :: Int -> ([Card],GameState)
-initialGuess n = ((getCards n []), (0,[0,0,0,0],[],[],[],[0,0,0,0,0,0],[]))
+initialGuess n = ((getCards n []), (1,[0,0,0,0],[],[],[],[0,0,0,0,0,0],[]))
 
 -- |take n adjacent cards for initial guessing
 getCards :: Int -> [Card] -> [Card]
