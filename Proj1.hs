@@ -2,7 +2,7 @@ module Proj1 (feedback, initialGuess, nextGuess, GameState) where
 import Data.List
 import Card
 
-type GameState = (Int, Int)
+type GameState = (Int, Int, [[Card]])
 
 
 -- |takes the number of cards in the answer as input and returns 
@@ -10,7 +10,7 @@ type GameState = (Int, Int)
 --  and a game state. The number of cards specified will be 2 
 --  for most of the test, and 3 or 4 for the remaining tests
 initialGuess :: Int -> ([Card],GameState)
-initialGuess n = ((getCards n []), (0,0))
+initialGuess n = ((getCards n []), (0,0,[[]]))
 
 -- |take n adjacent cards for initial guessing
 getCards :: Int -> [Card] -> [Card]
@@ -69,16 +69,44 @@ oneMatch target guess
 
 -- | takes as input a pair of the previous guess and game state, and the feedback 
 -- to this guess as a quintuple of counts of correct cards, low ranks, correct 
--- ranks, high ranks, and correct suits, and returns a pair of the next guess 
+-- ranks, high ranks, and correct suits, and returns a pair of the next guess
 -- and new game state.
 nextGuess :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
-nextGuess (previous,state) (exact,lower,sameR,higher,sameS)
-    | lower /= 0    = (improveRank previous minimum pred, (1,1))
-    | higher /= 0   = (improveRank previous maximum succ, (1,2))
-    | otherwise     = (previous, (1,3))
+nextGuess (previous, (n1,n2, candidates)) (exact,lower,sameR,higher,sameS)
+    | lower /= 0    = (improveRank previous minimum pred, (1,1,[[]]))
+    | higher /= 0   = (improveRank previous maximum succ, (2,1,[[]]))
+    | length candidates /= 0    = (head candidates, (3,1, drop 1 candidates))
+    | otherwise     = nextGuess (previous, (n1,n2, candidates)) (exact,lower,sameR,higher,sameS)
 
 
 improveRank :: [Card] -> ([Card] -> Card) -> (Card -> Card) -> [Card]
 improveRank [] _ _ = []
 improveRank cards f1 f2 = ([f2 target]) ++ (delete target cards)
     where target = f1 cards
+
+generateCandidates :: Int -> [[Card]] -> [[Card]]
+generateCandidates 0 candidates = candidates
+generateCandidates n [[]] = generateCandidates (n-1) [[x]| x <- allCards]
+generateCandidates n candidates = generateCandidates (n-1) [x++[y]| x <- candidates, y <-allCards, notElem y x]
+
+
+-- | this represent all the card in this game
+allCards :: [Card]
+allCards = enumFromTo (toEnum 0::Card) (toEnum 51::Card)
+
+
+-- | this function could go through the whole candidate list and remove those which does not
+--   satisfy the condition. This function are mostly used for shrinking the candidate space
+--   based on the feedback.
+--   * [x] or (x:xs) are the card list that we want to filter out
+--   * f1 is the function that take a single candidate and examine each card to see if they met 
+--     the condition, it should be a curried "map" function for all the time.
+--   * f2 could only be either "and" or "or" which could summarize the results of the f1
+myCardFilter :: [[Card]] -> ([Card] -> [Bool]) -> ([Bool] -> Bool) -> [[Card]]
+myCardFilter [] _ _ = []
+myCardFilter [x] f1 f2
+    | f2 $ f1 x = [x]
+    | otherwise = []
+myCardFilter (x:xs) f1 f2
+    | f2 $ f1 x = [x] ++ myCardFilter xs f1 f2
+    | otherwise = myCardFilter xs f1 f2
