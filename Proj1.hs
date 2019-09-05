@@ -96,8 +96,28 @@ guessEachSuit (nextToGuess, (process, lastExact, snum, beforePre, cor, ror, lenA
 
 -- | this function will make use the feedback and gradually shrink the size of candidates
 guessCards :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
-guessCards (previous, (process, lastExact, snum, beforePre, cor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS) =
-    nextGuess (previous, (process, exact, snum, beforePre, cor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+guessCards (previous, (process, lastExact, snum, beforePre, cor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+    -- NOTE: seems like the cor is useless in this case
+    | length diff == (abs $ exact-lastExact)   = nextGuess (previous, (process, exact, snum, beforePre, newcor, ror, lenAll, newCan1)) (exact,lower,sameR,higher,sameS)
+    | otherwise                              = nextGuess (previous, (process, exact, snum, beforePre, newcor, ror, lenAll, newCan2)) (exact,lower,sameR,higher,sameS)
+    where diff = [x| x <- previous, notElem x beforePre]
+          newCan1 = filter (\x -> allIn diff x) candidates
+          newCan2 = filter (\x -> oneIn diff x) candidates
+          newcor = cor ++ [Cardors diff]
+
+
+-- | test whether all elements in first argument are in second argument
+allIn :: [Card] -> [Card] -> Bool
+allIn [] b = True
+allIn [x] b = elem x b
+allIn (x:xs) b = (elem x b) && (allIn xs b)
+
+
+-- | test whether at least one elements in first argument are in second argument
+oneIn :: [Card] -> [Card] -> Bool
+oneIn [] b = True
+oneIn [x] b = elem x b
+oneIn (x:xs) b = (elem x b) || (oneIn xs b)
 
 
 -- | expand the range of the guess card where
