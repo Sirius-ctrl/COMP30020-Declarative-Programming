@@ -76,12 +76,9 @@ guessRank (previous, (process, lastExact, snum, cor, ror, lenAll, candidates)) (
     | l && h        = guessEachSuit (improveRank (improveRank previous minimum pred) maximum succ, (process, lastExact, snum, cor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
     | l             = guessEachSuit (improveRank previous minimum pred, (process, lastExact, snum, cor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
     | h             = guessEachSuit (improveRank previous maximum succ, (process, lastExact, snum, cor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | otherwise     = guessEachSuit (previous, (2, lastExact, snum, cor, newror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+    | otherwise     = guessEachSuit (previous, (2, lastExact, snum, cor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
     where l = lower /= 0
           h = higher /= 0
-          newror = newh ++ newl
-          newh   = [Rankor (Just (rank $ maximum previous)) Nothing]
-          newl   = [Rankor (Just (rank $ minimum previous)) Nothing]
 
 
 guessEachSuit :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
@@ -162,8 +159,10 @@ myCardFilter (x:xs) f1 f2
 --   * [[Card]], all candidates
 type GameState = (Int, Int, [Int], [Cardor], [Rankor], [Int], [[Card]])
 
-data Rankor = Rankor (Maybe Rank) (Maybe Rank) deriving (Show)
-data Cardor = Cardor (Maybe Card) (Maybe Card) deriving (Show)
+data Rankor = Rankor Rank | Rankers [Card]
+             deriving (Show)
+data Cardor = Cardor Card | Cardors [Card]
+            deriving (Show)
 
 
 -- |takes the number of cards in the answer as input and returns 
