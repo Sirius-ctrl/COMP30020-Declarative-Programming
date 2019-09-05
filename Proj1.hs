@@ -85,11 +85,11 @@ guessRank (previous, (process, snum, cor, sor, ror, lenAll, candidates)) (exact,
 
 guessEachSuit :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
 guessEachSuit (nextToGuess, (process, snum, cor, sor, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | length snum == 0              = (nextToGuess, (process, [sameS], cor, sor, ror, lenAll, candidates))
-    | (length snum <= 4)            = (nextToGuess, (process, snum ++ [sameS], cor, sor, ror, lenAll, candidates))
+    | length snum == 3              = (nextToGuess, (process, snum ++ [sameS], cor, sor, ror, lenAll, candidates))
+    | (length snum < 3)             = (shiftedCard, (process, snum ++ [sameS], cor, sor, ror, lenAll, candidates))
     | process == 2                  = (nextToGuess, (3, snum, cor, sor, ror, lenAll, candidates))
     | otherwise                     = (nextToGuess, (process, snum, cor, sor, ror, lenAll, candidates))
-
+    where shiftedCard = map (\x -> changeSuit (succ $ suit x) x) nextToGuess
 -- | expand the range of the guess card where
 --   * f1 defined whether we like the expend the lower boundary of higher bound, since when comparing rank
 --     they should have the same suit. NOTE: Therefore, simply using maximum and minimum is good enough.
