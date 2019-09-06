@@ -57,18 +57,14 @@ oneMatch target guess
 -- and new game state.
 nextGuess :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
 nextGuess (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    -- | (lastExact /= exact) && (length candidates > 0)
-    --     = guessCards (previous, (5, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+    | process == 4
+        = guessCards (previous, (5, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
     | process < 3
         = guessRank (previous, (process, exact, snum, previous, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-
     -- | process > 3
     --     = ([ceiling, floor], (process, exact, snum, previous, ror, lenAll, drop 1 candidates))
-
     | process > 3
-        = (head candidates, (process, exact, snum, previous, ror, lenAll, drop 1 candidates))
-
-    -- NOTE it may means that guessCards probably clean too many candidates
+        = (head candidates, (4, exact, snum, previous, ror, lenAll, drop 1 candidates))
     | otherwise
         = nextGuess (previous, (4, exact, snum, previous, ror, lenAll, suitPatternCan)) (exact,lower,sameR,higher,sameS)
     where
@@ -122,7 +118,6 @@ guessRank (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidat
           higherMax = (improveRank highn (head) succ) ++ (avo \\ highn)
 
 
-
 -- | apply a card transformation function n times
 nApply :: ([Card] -> [Card]) -> [Card] -> Int -> [Card]
 nApply f cards 0 = cards
@@ -133,6 +128,7 @@ colliAvo :: [Card] -> Int -> [Suit] -> [Card]
 colliAvo [] _ _ = []
 colliAvo [x] n slist = [changeSuit (slist !! n) x]
 colliAvo (x:xs) n slist = (colliAvo [x] n slist) ++ (colliAvo xs (mod (n+1) 4) slist)
+
 
 -- | guess number card in answer for each suit
 guessEachSuit :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
@@ -151,14 +147,22 @@ guessEachSuit (nextToGuess, (process, lastExact, snum, beforePre, ror, lenAll, c
 -- | this function will make use the feedback and gradually shrink the size of candidates
 guessCards :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
 guessCards (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | length diff == (abs $ exact-lastExact) 
-        = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan1)) (exact,lower,sameR,higher,sameS)
-    | otherwise                              
-        = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan2)) (exact,lower,sameR,higher,sameS)
-    where diff = [x| x <- previous, notElem x beforePre]
-          newCan1 = filter (\x -> allIn diff x) candidates
-          newCan2 = filter (\x -> oneIn diff x) candidates
+    -- | length diff == (abs $ exact-lastExact)
+    --     = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan1)) (exact,lower,sameR,higher,sameS)
+    -- | otherwise
+    --     = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan2)) (exact,lower,sameR,higher,sameS)
+    -- where diff = [x| x <- previous, notElem x beforePre]
+    --       newCan1 = filter (\x -> allIn diff x) candidates
+    --       newCan2 = filter (\x -> oneIn diff x) candidates
+    = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan)) (exact,lower,sameR,higher,sameS)
+        where newCan    = filter (\x -> containsOne possible x) candidates
+              possible  = generateCandidates exact previous []
 
+
+containsOne :: [[Card]] -> [Card] -> Bool
+containsOne [] _ = True
+containsOne [x] cards = allIn x cards
+containsOne (x:xs) cards = allIn x cards || containsOne xs cards
 
 -- | test whether all elements in first argument are in second argument
 allIn :: [Card] -> [Card] -> Bool
