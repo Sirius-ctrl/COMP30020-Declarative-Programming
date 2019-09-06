@@ -57,8 +57,10 @@ oneMatch target guess
 -- and new game state.
 nextGuess :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
 nextGuess (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | process == 4
+    | (process == 4) && (exact /= lastExact)
         = guessCards (previous, (5, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+    -- | process == 5
+    --     = ([], (process, exact, snum, previous, ror, lenAll, drop 1 candidates))
     | process < 3
         = guessRank (previous, (process, exact, snum, previous, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
     -- | process > 3
@@ -69,10 +71,10 @@ nextGuess (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidat
         = nextGuess (previous, (4, exact, snum, previous, ror, lenAll, suitPatternCan)) (exact,lower,sameR,higher,sameS)
     where
           suitPatternCan = filter (\x -> suitMatcher x snum) fixedRangeCan
-          fixedRangeCan  = myCardFilter upperBoundCan (map $ \x -> True) or
+          fixedRangeCan  = myCardFilter upperBoundCan (map $ \x -> rank x == rank floor) or
           -- rank x == rank floor
           -- filter out the candidates which do not contains the upper bound rank
-          upperBoundCan  = myCardFilter primaryCan (map $ \x -> True) or
+          upperBoundCan  = myCardFilter primaryCan (map $ \x -> rank x == rank ceiling) or
           -- rank x == rank ceiling
           -- generate all possible candidates based on the reducedDeck
           primaryCan     = generateCandidates (length previous) reducedDeck []
@@ -96,8 +98,8 @@ guessRank (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidat
     --  we have cards sit outside of the upper boundary
     | h && (length snum >= 3)
         = guessEachSuit (higherMax, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | notAll && (length snum >= 3) && (length previous /= 2)
-        = guessEachSuit (shrink, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+    -- | notAll && (length snum >= 3) && (length previous /= 2)
+    --     = guessEachSuit (shrink, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
     -- | process == 0
     --     = ([Card Club R2], (process, exact, snum, previous, ror, lenAll, []))
     | length snum < 3
@@ -107,8 +109,7 @@ guessRank (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidat
     where l = lower /= 0
           h = higher /= 0
           notAll = sameR < 1
-
-          shrink = improveRank (improveRank avo minRank succ) maxRank pred
+          -- shrink = improveRank (improveRank avo minRank succ) maxRank pred
           avo = colliAvo previous 0 allSuits
           highn = maxnRank avo higher
           lown = minnRank avo lower
@@ -116,12 +117,6 @@ guessRank (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidat
           expand = improveRank (improveRank avo minRank pred) maxRank succ
           lowerMin = (improveRank lown (head) pred) ++ (avo \\ lown)
           higherMax = (improveRank highn (head) succ) ++ (avo \\ highn)
-
-
--- | apply a card transformation function n times
-nApply :: ([Card] -> [Card]) -> [Card] -> Int -> [Card]
-nApply f cards 0 = cards
-nApply f cards n = nApply f (f cards) (n-1)
 
 
 colliAvo :: [Card] -> Int -> [Suit] -> [Card]
@@ -139,7 +134,7 @@ guessEachSuit (nextToGuess, (process, lastExact, snum, beforePre, ror, lenAll, c
         = (shiftedCard, (process, lastExact, snum ++ [sameS], beforePre, ror, lenAll, candidates))
     | (process == 2) && (length snum == 4)
         = (nextToGuess, (3, lastExact, snum, beforePre, ror, lenAll, candidates))
-    | otherwise                     
+    | otherwise
         = (nextToGuess, (0, lastExact, snum, beforePre, ror, lenAll, candidates))
     where shiftedCard = map (\x -> changeSuit (succ $ suit x) x) nextToGuess
 
@@ -147,22 +142,20 @@ guessEachSuit (nextToGuess, (process, lastExact, snum, beforePre, ror, lenAll, c
 -- | this function will make use the feedback and gradually shrink the size of candidates
 guessCards :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
 guessCards (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    -- | length diff == (abs $ exact-lastExact)
-    --     = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan1)) (exact,lower,sameR,higher,sameS)
-    -- | otherwise
-    --     = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan2)) (exact,lower,sameR,higher,sameS)
-    -- where diff = [x| x <- previous, notElem x beforePre]
-    --       newCan1 = filter (\x -> allIn diff x) candidates
-    --       newCan2 = filter (\x -> oneIn diff x) candidates
-    = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan)) (exact,lower,sameR,higher,sameS)
+    -- | True = ([], (process, exact, snum, beforePre, ror, lenAll, newCan))
+    | diffv == length newC = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan)) (exact,lower,sameR,higher,sameS)
+    | otherwise            = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
         where newCan    = filter (\x -> containsOne possible x) candidates
-              possible  = generateCandidates exact previous []
+              possible  = generateCandidates diffv newC []
+              diffv     = abs $ exact-lastExact
+              newC      = previous \\ beforePre
 
 
 containsOne :: [[Card]] -> [Card] -> Bool
 containsOne [] _ = True
 containsOne [x] cards = allIn x cards
 containsOne (x:xs) cards = allIn x cards || containsOne xs cards
+
 
 -- | test whether all elements in first argument are in second argument
 allIn :: [Card] -> [Card] -> Bool
@@ -185,6 +178,7 @@ maxRank (x:xs)
     | rank x > (rank $ maxRank xs)  = x
     | otherwise                     = maxRank xs
 
+
 -- | get the card with minimum rank
 minRank :: [Card] -> Card
 minRank [x] = x
@@ -192,11 +186,13 @@ minRank (x:xs)
     | rank x < (rank $ minRank xs)  = x
     | otherwise                     = minRank xs
 
+
 maxnRank :: [Card] -> Int -> [Card]
 maxnRank cards 0 = []
 maxnRank cards n = [mr] ++ (maxnRank remains (n-1))
     where mr = maxRank cards
           remains = delete mr cards
+
 
 minnRank :: [Card] -> Int -> [Card]
 minnRank cards 0 = []
@@ -292,5 +288,5 @@ initialGuess n = ((getCards n []), (1,0,[],[],[],[0,0,0,0,0,0],[]))
 getCards :: Int -> [Card] -> [Card]
 getCards 0 cardList = cardList
 getCards n cardList
-    | length cardList == 0  = getCards (n-1) [Card Club R3]
+    | length cardList == 0  = getCards (n-1) [Card Club R6]
     | otherwise             = getCards (n-1) $ [succ $ head cardList] ++ cardList
