@@ -56,17 +56,17 @@ oneMatch target guess
 -- ranks, high ranks, and correct suits, and returns a pair of the next guess
 -- and new game state.
 nextGuess :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
-nextGuess (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | process == 4
-        = guessCards (previous, (5, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+nextGuess (previous, (process, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
+    | process == 4 && exact /= lastExact
+        = guessCards (previous, (5, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     | process < 3
-        = guessRank (previous, (process, exact, snum, previous, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+        = guessRank (previous, (process, exact, snum, previous, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     -- | process > 3
     --     = ([ceiling, floor], (process, exact, snum, previous, ror, lenAll, drop 1 candidates))
     | process > 3
-        = (head candidates, (4, exact, snum, previous, ror, lenAll, drop 1 candidates))
+        = (head candidates, (4, exact, snum, previous, rbounds, cmust, drop 1 candidates))
     | otherwise
-        = nextGuess (previous, (4, exact, snum, previous, ror, lenAll, suitPatternCan)) (exact,lower,sameR,higher,sameS)
+        = nextGuess (previous, (4, exact, snum, previous, rbounds, cmust, ncan)) (exact,lower,sameR,higher,sameS)
     where
           suitPatternCan = filter (\x -> suitMatcher x snum) fixedRangeCan
           fixedRangeCan  = myCardFilter upperBoundCan (map $ \x -> True) or
@@ -80,30 +80,82 @@ nextGuess (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidat
           reducedDeck    = filter (\x -> rank x >= (rank $ floor)) $ filter (\x -> (rank x) <= (rank $ ceiling)) allCards
           floor          = minRank previous
           ceiling        = maxRank previous
+          ncan = updateCandidates (previous, (process, lastExact, snum, beforePre, rbounds, cmust, candidates))
+
+
+updateCandidates :: ([Card],GameState) -> [[Card]]
+updateCandidates (previous, (process, lastExact, snum, beforePre, rbounds, cmust, candidates))
+    = cd
+    where
+        oldCeiling     = maximum rbounds
+        oldFloor       = minimum rbounds
+        newCeiling     = rank $ maxRank previous
+        newFloor       = rank $ minRank previous
+        upperChange    = oldCeiling < newCeiling
+        lowerChange    = oldFloor > newFloor
+
+        -- | generate candidates
+        -- card we need to consider in our candidates, e.g., if we know 1 card in the answer, support we need to guess 4 cards, now
+        -- we only need to consider the other 3.
+        cneed = length previous - length cmust
+        -- throw those cards that are out of range
+        reducedDeck = filter (\x -> notElem x cmust) $ filter (\x -> rank x >= newFloor) $ filter (\x -> (rank x) <= newCeiling) allCards
+        extraFunction = boundChecker [newFloor, newCeiling] upperChange lowerChange
+        cd = getCandidates cneed cmust reducedDeck snum rbounds extraFunction
+
+
+boundChecker :: [Rank] -> Bool -> Bool -> ([Card] -> Bool)
+boundChecker rbounds upperChange lowerChange
+    | upperChange && lowerChange
+        = \x -> elem l (map rank x) && elem h (map rank x)
+    | upperChange
+        = \x -> elem h (map rank x)
+    | lowerChange
+        = \x -> elem l (map rank x)
+    | otherwise
+        = \x -> True
+    where
+        l = minimum rbounds
+        h = maximum rbounds
+
+
+getCandidates :: Int -> [Card] -> [Card] -> [Int] -> [Rank] -> ([Card] -> Bool) -> [[Card]]
+getCandidates cneed cmust reducedDeck snum rbounds func
+    | length cmust == 0     = genCan f cneed reducedDeck []
+    | otherwise             = [x++cmust | x <- generateCandidates cneed reducedDeck [], f (x++cmust)]
+    where f = \x -> (func x) && (suitMatcher x snum)
+
+
+-- | generate candidates based on a subset of allCards which is seed
+genCan :: ([Card] -> Bool) -> Int -> [Card] -> [[Card]] -> [[Card]]
+genCan _ 0 _ candidates = candidates
+genCan f n seed [] = genCan f (n-1) seed [[x]| x <- seed]
+genCan f 1 seed candidates = genCan f 0 seed (nub $ map sort [x++[y]| x <- candidates, y <- seed, notElem y x, f (x++[y])])
+genCan f n seed candidates = genCan f (n-1) seed (nub $ map sort [x++[y]| x <- candidates, y <- seed, notElem y x])
 
 
 -- | this function can gradually explore the range of the answers
 guessRank :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
-guessRank (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+guessRank (previous, (process, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     -- | process == 0
-    --     = ([Card Club R2], (process, exact, snum, previous, ror, lenAll, []))        
+    --     = ([Card Club R2], (process, exact, snum, previous, rbounds, cmust, []))        
     -- we have some cards in our guess out side of the range at both upper and lower boundary
     | l && h && (length snum >= 3)
-        = guessEachSuit (expand, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+        = guessEachSuit (expand, (process, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     -- we have cards sit outside of the lower boundary
     | l && (length snum >= 3)
-        = guessEachSuit (lowerMin, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+        = guessEachSuit (lowerMin, (process, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     --  we have cards sit outside of the upper boundary
     | h && (length snum >= 3)
-        = guessEachSuit (higherMax, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
-    | notAll && (length snum >= 3) && (length previous /= 2)
-        = guessEachSuit (shrink, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+        = guessEachSuit (higherMax, (process, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
+    -- | notAll && (length snum >= 3) && (length previous /= 2)
+    --     = guessEachSuit (shrink, (process, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     -- | process == 0
-    --     = ([Card Club R2], (process, exact, snum, previous, ror, lenAll, []))
+    --     = ([Card Club R2], (process, exact, snum, previous, rbounds, cmust, []))
     | length snum < 3
-        = guessEachSuit (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+        = guessEachSuit (previous, (process, lastExact, snum, beforePre, [rank $ minRank previous, rank $ maxRank previous], cmust, candidates)) (exact,lower,sameR,higher,sameS)
     | otherwise
-        = guessEachSuit (previous, (2, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+        = guessEachSuit (previous, (2, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     where l = lower /= 0
           h = higher /= 0
           notAll = sameR < 1
@@ -112,16 +164,12 @@ guessRank (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidat
           avo = colliAvo previous 0 allSuits
           highn = maxnRank avo higher
           lown = minnRank avo lower
+          pn = \x -> map pred x
+          sn = \x -> map succ x
 
           expand = improveRank (improveRank avo minRank pred) maxRank succ
-          lowerMin = (improveRank lown (head) pred) ++ (avo \\ lown)
-          higherMax = (improveRank highn (head) succ) ++ (avo \\ highn)
-
-
--- | apply a card transformation function n times
-nApply :: ([Card] -> [Card]) -> [Card] -> Int -> [Card]
-nApply f cards 0 = cards
-nApply f cards n = nApply f (f cards) (n-1)
+          lowerMin = (pn $ lown) ++ (avo \\ lown)
+          higherMax = (sn $ highn) ++ (avo \\ highn)
 
 
 colliAvo :: [Card] -> Int -> [Suit] -> [Card]
@@ -132,29 +180,30 @@ colliAvo (x:xs) n slist = (colliAvo [x] n slist) ++ (colliAvo xs (mod (n+1) 4) s
 
 -- | guess number card in answer for each suit
 guessEachSuit :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
-guessEachSuit (nextToGuess, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+guessEachSuit (nextToGuess, (process, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     | (length snum == 3)
-        = guessEachSuit (nextToGuess, (process, lastExact, snum ++ [sameS], beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+        = guessEachSuit (nextToGuess, (process, lastExact, snum ++ [sameS], beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     | (length snum < 3)
-        = (shiftedCard, (process, lastExact, snum ++ [sameS], beforePre, ror, lenAll, candidates))
+        = (shiftedCard, (process, lastExact, snum ++ [sameS], beforePre, rbounds, cmust, candidates))
     | (process == 2) && (length snum == 4)
-        = (nextToGuess, (3, lastExact, snum, beforePre, ror, lenAll, candidates))
+        = (nextToGuess, (3, lastExact, snum, beforePre, rbounds, cmust, candidates))
     | otherwise                     
-        = (nextToGuess, (0, lastExact, snum, beforePre, ror, lenAll, candidates))
+        = (nextToGuess, (0, lastExact, snum, beforePre, rbounds, cmust, candidates))
     where shiftedCard = map (\x -> changeSuit (succ $ suit x) x) nextToGuess
 
 
+-- TODO : rewrite the function into generate some things instead of *filters*
 -- | this function will make use the feedback and gradually shrink the size of candidates
 guessCards :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
-guessCards (previous, (process, lastExact, snum, beforePre, ror, lenAll, candidates)) (exact,lower,sameR,higher,sameS)
+guessCards (previous, (process, lastExact, snum, beforePre, rbounds, cmust, candidates)) (exact,lower,sameR,higher,sameS)
     -- | length diff == (abs $ exact-lastExact)
-    --     = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan1)) (exact,lower,sameR,higher,sameS)
+    --     = nextGuess (previous, (process, exact, snum, beforePre, rbounds, cmust, newCan1)) (exact,lower,sameR,higher,sameS)
     -- | otherwise
-    --     = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan2)) (exact,lower,sameR,higher,sameS)
+    --     = nextGuess (previous, (process, exact, snum, beforePre, rbounds, cmust, newCan2)) (exact,lower,sameR,higher,sameS)
     -- where diff = [x| x <- previous, notElem x beforePre]
     --       newCan1 = filter (\x -> allIn diff x) candidates
     --       newCan2 = filter (\x -> oneIn diff x) candidates
-    = nextGuess (previous, (process, exact, snum, beforePre, ror, lenAll, newCan)) (exact,lower,sameR,higher,sameS)
+    = nextGuess (previous, (process, exact, snum, beforePre, rbounds, cmust, newCan)) (exact,lower,sameR,higher,sameS)
         where newCan    = filter (\x -> containsOne possible x) candidates
               possible  = generateCandidates exact previous []
 
@@ -163,6 +212,7 @@ containsOne :: [[Card]] -> [Card] -> Bool
 containsOne [] _ = True
 containsOne [x] cards = allIn x cards
 containsOne (x:xs) cards = allIn x cards || containsOne xs cards
+
 
 -- | test whether all elements in first argument are in second argument
 allIn :: [Card] -> [Card] -> Bool
@@ -271,11 +321,10 @@ myCardFilter (x:xs) f1 f2
 --   * Int, previous number of exact
 --   * [Int], represent number of card for each suit, it contains 4 Int, they are representing Club Diamond Heart Spade from left to right
 --   * [Card], this represent the card before the the one that we provided with feedback
---   * [Rankor] the rank pair which either of them will be in the card (only useful when there are 4 cards to guess)
---   * [Cardor] the card pair which either of them will be in the card (only useful when there are 4 cards to guess)
---   * [Int], length of above list
+--   * [rank] the upper and lower bound of rank
+--   * [card] card must in guess
 --   * [[Card]], all candidates
-type GameState = (Int, Int, [Int], [Card], [Rankor], [Int], [[Card]])
+type GameState = (Int, Int, [Int], [Card], [Rank], [Card], [[Card]])
 
 data Rankor = Rankor Rank | Rankers [Card]
              deriving (Show)
@@ -286,7 +335,7 @@ data Rankor = Rankor Rank | Rankers [Card]
 --  and a game state. The number of cards specified will be 2 
 --  for most of the test, and 3 or 4 for the remaining tests
 initialGuess :: Int -> ([Card],GameState)
-initialGuess n = ((getCards n []), (1,0,[],[],[],[0,0,0,0,0,0],[]))
+initialGuess n = ((getCards n []), (1,0,[],[],[],[],[]))
 
 -- |take n adjacent cards for initial guessing
 getCards :: Int -> [Card] -> [Card]
