@@ -66,21 +66,9 @@ nextGuess (previous, (process, lastExact, snum, beforePre, rbounds, cmust, candi
     | process > 3
         = (head candidates, (4, exact, snum, previous, rbounds, cmust, drop 1 candidates))
     | otherwise
-        = nextGuess (previous, (4, exact, snum, previous, rbounds, cmust, ncan)) (exact,lower,sameR,higher,sameS)
+        = nextGuess (previous, (4, exact, snum, previous, rbounds, cmust, newcan)) (exact,lower,sameR,higher,sameS)
     where
-          suitPatternCan = filter (\x -> suitMatcher x snum) fixedRangeCan
-          fixedRangeCan  = myCardFilter upperBoundCan (map $ \x -> True) or
-          -- rank x == rank floor
-          -- filter out the candidates which do not contains the upper bound rank
-          upperBoundCan  = myCardFilter primaryCan (map $ \x -> True) or
-          -- rank x == rank ceiling
-          -- generate all possible candidates based on the reducedDeck
-          primaryCan     = generateCandidates (length previous) reducedDeck []
-          -- remove all cards that contains card outside of the range
-          reducedDeck    = filter (\x -> rank x >= (rank $ floor)) $ filter (\x -> (rank x) <= (rank $ ceiling)) allCards
-          floor          = minRank previous
-          ceiling        = maxRank previous
-          ncan = updateCandidates (previous, (process, lastExact, snum, beforePre, rbounds, cmust, candidates))
+          newcan = updateCandidates (previous, (process, lastExact, snum, beforePre, rbounds, cmust, candidates))
 
 
 updateCandidates :: ([Card],GameState) -> [[Card]]
