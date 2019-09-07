@@ -59,6 +59,8 @@ nextGuess :: ([Card],GameState) -> (Int,Int,Int,Int,Int) -> ([Card],GameState)
 nextGuess (previous, (process, lastExact, snum, beforePre, rbounds, cmust, cmustNot, candidates)) (exact,lower,sameR,higher,sameS)
     | (exact == 0) && (notElem (previous !! 0) cmustNot)
         = nextGuess (previous, (process, lastExact, snum, beforePre, rbounds, cmust, cmustNot++previous, candidates)) (exact,lower,sameR,higher,sameS)
+    | (lastExact == exact) && ((length previous) - exact == length suspicious) && (notElem (suspicious !! 0) cmustNot)
+        =  nextGuess (previous, (process, lastExact, snum, beforePre, rbounds, cmust, cmustNot++suspicious, candidates)) (exact,lower,sameR,higher,sameS)
     | (process == 4) && (exact /= lastExact) && ((abs $ lastExact - exact) == (length $ previous \\ beforePre))
         = guessCards (previous, (5, lastExact, snum, beforePre, rbounds, cmust, cmustNot, candidates)) (exact,lower,sameR,higher,sameS)
     | process < 3
@@ -69,6 +71,7 @@ nextGuess (previous, (process, lastExact, snum, beforePre, rbounds, cmust, cmust
         = nextGuess (previous, (4, exact, snum, previous, rbounds, cmust, cmustNot, newcan)) (exact,lower,sameR,higher,sameS)
     where
           newcan = updateCandidates (previous, (process, lastExact, snum, beforePre, rbounds, cmust, cmustNot, candidates))
+          suspicious = previous \\ cmust
 
 
 updateCandidates :: ([Card],GameState) -> [[Card]]
