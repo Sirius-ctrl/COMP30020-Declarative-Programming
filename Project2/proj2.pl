@@ -19,6 +19,7 @@ grid_solution(Grid, X_axis, Y_axis) :-
 
 % some of the part are still not grounded, so we keep going deeper.
 grid_solution(Grid, X_axis, Y_axis) :-
+    \+ ground(Grid),
     check_diagonal(Grid),
     % TODO :  for now, it can only guess row wise.
     guess(Grid, X_axis, Grid0),
@@ -128,7 +129,6 @@ guess(Grid, _Targets, _Loc, _Current, Result) :-
 guess(Grid, Targets, Loc, Current, Result) :-
     (   ground(Current)
     % NOTE : we are not checking whether the bounded value are satisfy the condition or not.
-    % FIXME (FIXED) : we will check 0 twice
     ->  Loc0 is Loc+1,
         nth0(Loc0, Grid, Current0),
         guess(Grid, Targets, Loc0, Current0, Result)
