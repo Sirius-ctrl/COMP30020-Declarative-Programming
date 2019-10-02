@@ -18,7 +18,6 @@ getX(YnG, Y_axis, Grid) :-
     getX(YnG, [], Y, [], Grid),
     reverse(Y, Y_axis).
     
-
 getX([], YA, YA, GA, GA).
 
 getX([[Y|Ys]|Rest], YA, Y_axis, GA, Grid) :-
@@ -27,19 +26,6 @@ getX([[Y|Ys]|Rest], YA, Y_axis, GA, Grid) :-
 
 
 % ---------------------------------------------------------------------
-bound_sum([], []).
-bound_sum([List|Ls], [Target|Ts]) :-
-    all_distinct(List),
-    sum(List, #=, Target),
-    bound_sum(Ls, Ts).
-
-
-bound_product([], []).
-bound_product([List|Ls], [Target|Ts]) :-
-    all_distinct(List),
-    product(List, #=, Target),
-    bound_product(Ls, Ts).
-
 
 % product(?List, +Operation, ?Target).
 product([Result], Operation, Target) :-
@@ -49,10 +35,13 @@ product([A, B|Xs], Operation, Total) :-
     X #= A*B,
     product([X|Xs], Operation, Total).
 
-bound_sum_or_product(Grid, Targets) :-
-    (   bound_sum(Grid, Targets)
-    ;   bound_product(Grid, Targets)
-    ).
+bound_sum_or_product([], []).
+bound_sum_or_product([List|Ls], [Target|Ts]) :-
+    all_distinct(List),
+    (   sum(List, #=, Target)
+    ;   product(List, #=, Target)
+    ),
+    bound_sum_or_product(Ls, Ts).
 
 
 % --------------------------------------------------------------------
@@ -60,6 +49,7 @@ bound_range([]).
 bound_range([List|Ls]) :-
     List ins 1..9,
     bound_range(Ls).
+
 
 % --------------------------------------------------------------------
 % bound_diagonal restrict the diagonal to have the same value
